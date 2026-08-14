@@ -1,0 +1,15 @@
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import Layout from './components/Layout'
+import Dashboard from './pages/Dashboard'
+import Patients from './pages/Patients'
+import PatientDetail from './pages/PatientDetail'
+import Alerts from './pages/Alerts'
+import Monitoring from './pages/Monitoring'
+import PatientDemo from './pages/PatientDemo'
+import Notifications from './pages/Notifications'
+import Communications from './pages/Communications'
+import RiskOverviewPage from './pages/RiskOverviewPage'
+import DoctorEscalations from './pages/DoctorEscalations'
+import { AIInsights, AuditTrail, CarePlans, Consultations, Devices, DischargePage, Enrolments, Integrations, Medications, MissingReadings, PopulationTrends, Reviews, SettingsPage, Tasks } from './pages/Modules'
+
+export default function App(){const location=useLocation();if(location.pathname==='/patient-demo')return <PatientDemo/>;return <Layout><Routes><Route path="/" element={<Dashboard/>}/><Route path="/patients" element={<Patients/>}/><Route path="/patients/:id" element={<PatientDetail/>}/><Route path="/discharge/:id" element={<DischargePage/>}/><Route path="/monitoring" element={<Monitoring/>}/><Route path="/live-observations" element={<Monitoring/>}/><Route path="/enrolments" element={<Enrolments/>}/><Route path="/alerts" element={<Alerts/>}/><Route path="/notifications" element={<Notifications/>}/><Route path="/missing-readings" element={<MissingReadings/>}/><Route path="/care-plans" element={<CarePlans/>}/><Route path="/medications" element={<Medications/>}/><Route path="/tasks" element={<Tasks/>}/><Route path="/nurse-reviews" element={<Reviews/>}/><Route path="/doctor-escalations" element={<DoctorEscalations/>}/><Route path="/consultations" element={<Consultations/>}/><Route path="/communications" element={<Communications/>}/><Route path="/ai-insights" element={<AIInsights/>}/><Route path="/risk-overview" element={<RiskOverviewPage/>}/><Route path="/population-trends" element={<PopulationTrends/>}/><Route path="/devices" element={<Devices/>}/><Route path="/integrations" element={<Integrations/>}/><Route path="/audit" element={<AuditTrail/>}/><Route path="/settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes></Layout>}

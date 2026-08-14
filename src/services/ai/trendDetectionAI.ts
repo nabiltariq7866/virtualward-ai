@@ -1,0 +1,1 @@
+export { detectVitalTrend } from './index'

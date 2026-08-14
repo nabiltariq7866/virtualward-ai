@@ -1,0 +1,1 @@
+export { generateMonitoringInsights } from './index'
