@@ -1,15 +1,658 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, ArrowUpDown, ChevronLeft, ChevronRight, Search, UserPlus } from 'lucide-react'
-import { toast } from 'sonner'
-import { z } from 'zod'
-import { can, useVirtualWardStore } from '../stores/useVirtualWardStore'
-import type { Pathway, Risk } from '../types/domain'
-import { Badge, Card, CustomSelect, Empty, Field, Modal, PageHeader } from '../components/UI'
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  ArrowRight,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  UserPlus,
+} from "lucide-react";
+import { toast } from "sonner";
+import { z } from "zod";
+import { can, useVirtualWardStore } from "../stores/useVirtualWardStore";
+import type { Pathway, Risk } from "../types/domain";
+import {
+  Badge,
+  Card,
+  CustomSelect,
+  Empty,
+  Field,
+  Modal,
+  PageHeader,
+} from "../components/UI";
 
-const enrolSchema=z.object({name:z.string().trim().min(2,'Enter the patient name.'),age:z.number().min(18).max(110),pathway:z.enum(['COPD','Heart Failure','Diabetes','Post-operative','Hypertension']),condition:z.string().trim().min(2,'Enter the primary condition.'),startDate:z.string().min(1),duration:z.number().min(1),nurse:z.string().min(1),consultant:z.string().min(1),contact:z.string().trim().min(5,'Enter patient contact details.'),emergencyContact:z.string().trim().min(5,'Enter emergency contact details.'),deviceId:z.string(),monitoringPlan:z.string().min(1)})
-type EnrolForm=z.infer<typeof enrolSchema>
-export function EnrolModal({onClose}:{onClose:()=>void}){const s=useVirtualWardStore();const nav=useNavigate();const [error,setError]=useState(''),[form,setForm]=useState<EnrolForm>({name:'',age:60,pathway:'COPD',condition:'',startDate:new Date().toISOString().slice(0,10),duration:14,nurse:'Rebecca Morgan',consultant:'Dr. James Howard',contact:'',emergencyContact:'',deviceId:'',monitoringPlan:'COPD standard demo plan'});const update=<K extends keyof EnrolForm>(key:K,value:EnrolForm[K])=>setForm(v=>({...v,[key]:value}));const submit=(e:React.FormEvent)=>{e.preventDefault();const parsed=enrolSchema.safeParse(form);if(!parsed.success){setError(parsed.error.issues[0].message);return}try{const id=s.enrolPatient(form);toast.success('Patient enrolled in Virtual Ward.');onClose();nav(`/patients/${id}`)}catch(e){setError(e instanceof Error?e.message:'Unable to enrol patient.')}};return <Modal title="Enrol patient" wide onClose={onClose}><form onSubmit={submit} noValidate><div className="form-section"><h3>Patient details</h3><div className="form-grid"><Field label="Full name"><input aria-invalid={!!error} value={form.name} onChange={e=>update('name',e.target.value)}/></Field><Field label="Age"><input type="number" min="18" max="110" value={form.age} onChange={e=>update('age',+e.target.value)}/></Field><Field label="Patient contact"><input value={form.contact} placeholder="Demo phone or email" onChange={e=>update('contact',e.target.value)}/></Field><Field label="Emergency contact"><input value={form.emergencyContact} placeholder="Name and demo phone" onChange={e=>update('emergencyContact',e.target.value)}/></Field></div></div><div className="form-section"><h3>Virtual Ward episode</h3><div className="form-grid"><Field label="Care pathway"><CustomSelect ariaLabel="Care pathway" value={form.pathway} onChange={value=>{const pathway=value as Pathway;setForm(v=>({...v,pathway,monitoringPlan:`${pathway} standard demo plan`}))}} options={['COPD','Heart Failure','Diabetes','Post-operative','Hypertension'].map(value=>({value,label:value}))}/></Field><Field label="Primary condition"><input value={form.condition} onChange={e=>update('condition',e.target.value)}/></Field><Field label="Virtual Ward start date"><input type="date" value={form.startDate} onChange={e=>update('startDate',e.target.value)}/></Field><Field label="Expected monitoring duration"><CustomSelect ariaLabel="Expected monitoring duration" value={String(form.duration)} onChange={value=>update('duration',Number(value))} options={[7,14,21].map(days=>({value:String(days),label:`${days} days`}))}/></Field></div></div><div className="form-section"><h3>Care team, plan and devices</h3><div className="form-grid"><Field label="Assigned nurse"><CustomSelect ariaLabel="Assigned nurse" value={form.nurse} onChange={value=>update('nurse',value)} options={['Rebecca Morgan','Aisha Khan','Nina Patel'].map(value=>({value,label:value}))}/></Field><Field label="Assigned consultant"><CustomSelect ariaLabel="Assigned consultant" value={form.consultant} onChange={value=>update('consultant',value)} options={['Dr. James Howard','Dr. Leila Grant'].map(value=>({value,label:value}))}/></Field><Field label="Monitoring plan"><CustomSelect ariaLabel="Monitoring plan" value={form.monitoringPlan} onChange={value=>update('monitoringPlan',value)} options={[`${form.pathway} standard demo plan`,`${form.pathway} increased-frequency demo plan`].map(value=>({value,label:value}))}/></Field><Field label="Assign available device"><CustomSelect ariaLabel="Assign available device" value={form.deviceId} onChange={value=>update('deviceId',value)} options={[{value:'',label:'Assign later'},...s.devices.filter(d=>!d.patientId).map(d=>({value:d.id,label:`${d.type} · ${d.id}`}))]}/></Field></div></div>{error&&<p className="form-error" role="alert">{error}</p>}<small className="disclaimer">Synthetic demo enrolment. Monitoring plans are not validated medical protocols.</small><div className="modal-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="submit" className="btn primary" disabled={!can(s.role,'enrol')} title={!can(s.role,'enrol')?'Nurse, care coordinator or Administrator role required':''}>Enrol patient</button></div></form></Modal>}
+const enrolSchema = z.object({
+  name: z.string().trim().min(2, "Enter the patient name."),
+  age: z.number().min(18).max(110),
+  pathway: z.enum([
+    "COPD",
+    "Heart Failure",
+    "Diabetes",
+    "Post-operative",
+    "Hypertension",
+  ]),
+  condition: z.string().trim().min(2, "Enter the primary condition."),
+  startDate: z.string().min(1),
+  duration: z.number().min(1),
+  nurse: z.string().min(1),
+  consultant: z.string().min(1),
+  contact: z.string().trim().min(5, "Enter patient contact details."),
+  emergencyContact: z
+    .string()
+    .trim()
+    .min(5, "Enter emergency contact details."),
+  deviceId: z.string(),
+  monitoringPlan: z.string().min(1),
+});
+type EnrolForm = z.infer<typeof enrolSchema>;
+export function EnrolModal({ onClose }: { onClose: () => void }) {
+  const s = useVirtualWardStore();
+  const nav = useNavigate();
+  const [error, setError] = useState(""),
+    [form, setForm] = useState<EnrolForm>({
+      name: "",
+      age: 60,
+      pathway: "COPD",
+      condition: "",
+      startDate: new Date().toISOString().slice(0, 10),
+      duration: 14,
+      nurse: "Rebecca Morgan",
+      consultant: "Dr. James Howard",
+      contact: "",
+      emergencyContact: "",
+      deviceId: "",
+      monitoringPlan: "COPD standard demo plan",
+    });
+  const update = <K extends keyof EnrolForm>(key: K, value: EnrolForm[K]) =>
+    setForm((v) => ({ ...v, [key]: value }));
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = enrolSchema.safeParse(form);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0].message);
+      return;
+    }
+    try {
+      const id = s.enrolPatient(form);
+      toast.success("Patient enrolled in Virtual Ward.");
+      onClose();
+      nav(`/patients/${id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to enrol patient.");
+    }
+  };
+  return (
+    <Modal title="Enrol patient" wide onClose={onClose}>
+      <form onSubmit={submit} noValidate>
+        <div className="form-section">
+          <h3>Patient details</h3>
+          <div className="form-grid">
+            <Field label="Full name">
+              <input
+                aria-invalid={!!error}
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+              />
+            </Field>
+            <Field label="Age">
+              <input
+                type="number"
+                min="18"
+                max="110"
+                value={form.age}
+                onChange={(e) => update("age", +e.target.value)}
+              />
+            </Field>
+            <Field label="Patient contact">
+              <input
+                value={form.contact}
+                placeholder="Demo phone or email"
+                onChange={(e) => update("contact", e.target.value)}
+              />
+            </Field>
+            <Field label="Emergency contact">
+              <input
+                value={form.emergencyContact}
+                placeholder="Name and demo phone"
+                onChange={(e) => update("emergencyContact", e.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+        <div className="form-section">
+          <h3>Virtual Ward episode</h3>
+          <div className="form-grid">
+            <Field label="Care pathway">
+              <CustomSelect
+                ariaLabel="Care pathway"
+                value={form.pathway}
+                onChange={(value) => {
+                  const pathway = value as Pathway;
+                  setForm((v) => ({
+                    ...v,
+                    pathway,
+                    monitoringPlan: `${pathway} standard demo plan`,
+                  }));
+                }}
+                options={[
+                  "COPD",
+                  "Heart Failure",
+                  "Diabetes",
+                  "Post-operative",
+                  "Hypertension",
+                ].map((value) => ({ value, label: value }))}
+              />
+            </Field>
+            <Field label="Primary condition">
+              <input
+                value={form.condition}
+                onChange={(e) => update("condition", e.target.value)}
+              />
+            </Field>
+            <Field label="Virtual Ward start date">
+              <input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => update("startDate", e.target.value)}
+              />
+            </Field>
+            <Field label="Expected monitoring duration">
+              <CustomSelect
+                ariaLabel="Expected monitoring duration"
+                value={String(form.duration)}
+                onChange={(value) => update("duration", Number(value))}
+                options={[7, 14, 21].map((days) => ({
+                  value: String(days),
+                  label: `${days} days`,
+                }))}
+              />
+            </Field>
+          </div>
+        </div>
+        <div className="form-section">
+          <h3>Care team, plan and devices</h3>
+          <div className="form-grid">
+            <Field label="Assigned nurse">
+              <CustomSelect
+                ariaLabel="Assigned nurse"
+                value={form.nurse}
+                onChange={(value) => update("nurse", value)}
+                options={["Rebecca Morgan", "Aisha Khan", "Nina Patel"].map(
+                  (value) => ({ value, label: value }),
+                )}
+              />
+            </Field>
+            <Field label="Assigned consultant">
+              <CustomSelect
+                ariaLabel="Assigned consultant"
+                value={form.consultant}
+                onChange={(value) => update("consultant", value)}
+                options={["Dr. James Howard", "Dr. Leila Grant"].map(
+                  (value) => ({ value, label: value }),
+                )}
+              />
+            </Field>
+            <Field label="Monitoring plan">
+              <CustomSelect
+                ariaLabel="Monitoring plan"
+                value={form.monitoringPlan}
+                onChange={(value) => update("monitoringPlan", value)}
+                options={[
+                  `${form.pathway} standard demo plan`,
+                  `${form.pathway} increased-frequency demo plan`,
+                ].map((value) => ({ value, label: value }))}
+              />
+            </Field>
+            <Field label="Assign available device">
+              <CustomSelect
+                ariaLabel="Assign available device"
+                value={form.deviceId}
+                onChange={(value) => update("deviceId", value)}
+                options={[
+                  { value: "", label: "Assign later" },
+                  ...s.devices
+                    .filter((d) => !d.patientId)
+                    .map((d) => ({
+                      value: d.id,
+                      label: `${d.type} · ${d.id}`,
+                    })),
+                ]}
+              />
+            </Field>
+          </div>
+        </div>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <small className="disclaimer">
+          Synthetic demo enrolment. Monitoring plans are not validated medical
+          protocols.
+        </small>
+        <div className="modal-actions">
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn primary"
+            disabled={!can(s.role, "enrol")}
+            title={
+              !can(s.role, "enrol")
+                ? "Nurse, care coordinator or Administrator role required"
+                : ""
+            }
+          >
+            Enrol patient
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
-type SortKey='name'|'pathway'|'day'|'risk'|'adherence'
-export default function Patients(){const s=useVirtualWardStore();const [params]=useSearchParams();const [modal,setModal]=useState(false),[q,setQ]=useState(params.get('search')||''),[risk,setRisk]=useState('All'),[pathway,setPathway]=useState('All'),[monitoring,setMonitoring]=useState('All'),[connectivity,setConnectivity]=useState('All'),[adherence,setAdherence]=useState('All'),[review,setReview]=useState('All'),[clinician,setClinician]=useState('All'),[length,setLength]=useState('All'),[sort,setSort]=useState<SortKey>('risk'),[ascending,setAscending]=useState(true),[page,setPage]=useState(1);const nav=useNavigate(),pageSize=5;const filtered=useMemo(()=>s.patients.filter(p=>{const ds=s.devices.filter(d=>d.patientId===p.id);return p.monitoringStatus!=='Completed'&&(risk==='All'||p.risk===risk)&&(pathway==='All'||p.pathway===pathway)&&(monitoring==='All'||p.monitoringStatus===monitoring)&&(connectivity==='All'||(connectivity==='Offline'?ds.some(d=>d.status==='Offline'):ds.every(d=>d.status==='Connected')))&&(adherence==='All'||(adherence==='Concern'?p.adherence<85:p.adherence>=85))&&(review==='All'||(review==='Due'?p.nextReview.includes('Today')||p.nextReview==='Overdue':p.nextReview.includes('Tomorrow')))&&(clinician==='All'||p.nurse===clinician||p.consultant===clinician)&&(length==='All'||(length==='0–7 days'?p.day<=7:length==='8–14 days'?p.day>=8&&p.day<=14:p.day>14))&&[p.name,p.id,p.episodeId,p.pathway,p.nurse,p.consultant].join(' ').toLowerCase().includes(q.toLowerCase())}).sort((a,b)=>{const rank={Stable:0,'Needs Review':1,'High Risk':2};const av=sort==='risk'?rank[a.risk]:a[sort],bv=sort==='risk'?rank[b.risk]:b[sort];return (typeof av==='number'&&typeof bv==='number'?av-bv:String(av).localeCompare(String(bv)))*(ascending?1:-1)}),[s.patients,s.devices,q,risk,pathway,monitoring,connectivity,adherence,review,clinician,length,sort,ascending]);const pages=Math.max(1,Math.ceil(filtered.length/pageSize)),list=filtered.slice((Math.min(page,pages)-1)*pageSize,Math.min(page,pages)*pageSize);const changeSort=(key:SortKey)=>{if(sort===key)setAscending(v=>!v);else{setSort(key);setAscending(true)}};return <><PageHeader eyebrow="PATIENT COHORT" title="Active patients" description={`${s.patients.filter(p=>p.monitoringStatus!=='Completed').length} people are currently receiving care through the virtual ward.`} actions={<button className="btn primary" disabled={!can(s.role,'enrol')} title={!can(s.role,'enrol')?'Nurse, care coordinator or Administrator role required':''} onClick={()=>setModal(true)}><UserPlus/> Enrol patient</button>}/><Card><div className="table-tools"><label className="search-box"><Search/><input aria-label="Search active patients" value={q} onChange={e=>{setQ(e.target.value);setPage(1)}} placeholder="Search patient, ID, episode or clinician..."/></label><div className="filter-grid"><CustomSelect ariaLabel="Care pathway" value={pathway} onChange={value=>{setPathway(value);setPage(1)}} options={['All','COPD','Heart Failure','Diabetes','Post-operative','Hypertension'].map(value=>({value,label:value}))}/><CustomSelect ariaLabel="Risk" value={risk} onChange={value=>{setRisk(value);setPage(1)}} options={['All','Stable','Needs Review','High Risk'].map(value=>({value,label:value}))}/><CustomSelect ariaLabel="Monitoring status" value={monitoring} onChange={value=>{setMonitoring(value);setPage(1)}} options={['All','Active','Needs Attention'].map(value=>({value,label:value}))}/><CustomSelect ariaLabel="Device connectivity" value={connectivity} onChange={value=>{setConnectivity(value);setPage(1)}} options={['All','Connected','Offline'].map(value=>({value,label:value}))}/><CustomSelect ariaLabel="Medication adherence" value={adherence} onChange={value=>{setAdherence(value);setPage(1)}} options={['All','Maintained','Concern'].map(value=>({value,label:value}))}/><CustomSelect ariaLabel="Review due" value={review} onChange={value=>{setReview(value);setPage(1)}} options={['All','Due','Upcoming'].map(value=>({value,label:value}))}/><CustomSelect ariaLabel="Length of stay" value={length} onChange={value=>{setLength(value);setPage(1)}} options={['All','0–7 days','8–14 days','15+ days'].map(value=>({value,label:value}))}/><CustomSelect ariaLabel="Clinician" value={clinician} onChange={value=>{setClinician(value);setPage(1)}} options={['All','Rebecca Morgan','Aisha Khan','Nina Patel','Dr. James Howard','Dr. Leila Grant'].map(value=>({value,label:value}))}/></div></div>{list.length?<><div className="table-wrap"><table><thead><tr><th><button className="sort-button" onClick={()=>changeSort('name')}>Patient <ArrowUpDown/></button></th><th><button className="sort-button" onClick={()=>changeSort('pathway')}>Care pathway <ArrowUpDown/></button></th><th><button className="sort-button" onClick={()=>changeSort('day')}>Day <ArrowUpDown/></button></th><th><button className="sort-button" onClick={()=>changeSort('risk')}>Current risk <ArrowUpDown/></button></th><th>Latest vitals</th><th><button className="sort-button" onClick={()=>changeSort('adherence')}>Adherence <ArrowUpDown/></button></th><th>Device status</th><th>Next review</th><th></th></tr></thead><tbody>{list.map(p=>{const latest=s.observations.filter(o=>o.patientId===p.id).sort((a,b)=>+new Date(b.timestamp)-+new Date(a.timestamp)).slice(0,2),ds=s.devices.filter(d=>d.patientId===p.id);return <tr key={p.id} onClick={()=>nav(`/patients/${p.id}`)}><td><div className="patient-cell"><span>{p.name.split(' ').map(x=>x[0]).join('')}</span><div><b>{p.name}</b><small>{p.id} · {p.episodeId}</small></div></div></td><td>{p.pathway}<small className="block">{p.condition}</small></td><td>Day {p.day}</td><td><Badge>{p.risk}</Badge></td><td>{latest.map(o=><span className="vital-inline" key={o.id}>{o.type} <b>{o.value}{o.unit}</b></span>)}</td><td><b>{p.adherence}%</b><div className="progress"><i style={{width:p.adherence+'%'}}/></div></td><td><Badge>{ds.some(d=>d.status==='Offline')?'Needs Attention':'Connected'}</Badge><small className="block">{ds.length} assigned</small></td><td>{p.nextReview}</td><td><button className="icon-btn" aria-label={`Open ${p.name}`} onClick={e=>{e.stopPropagation();nav(`/patients/${p.id}`)}}><ArrowRight/></button></td></tr>})}</tbody></table></div><div className="pagination"><small>Showing {(page-1)*pageSize+1}–{Math.min(page*pageSize,filtered.length)} of {filtered.length}</small><div><button className="icon-btn" aria-label="Previous page" disabled={page<=1} onClick={()=>setPage(v=>v-1)}><ChevronLeft/></button><button className="icon-btn" aria-label="Next page" disabled={page>=pages} onClick={()=>setPage(v=>v+1)}><ChevronRight/></button></div></div></>:<Empty title="No matching patients" detail="Adjust the search or filters."/>}</Card>{modal&&<EnrolModal onClose={()=>setModal(false)}/>}</>}
+type SortKey = "name" | "pathway" | "day" | "risk" | "adherence";
+export default function Patients() {
+  const s = useVirtualWardStore();
+  const [params] = useSearchParams();
+  const [modal, setModal] = useState(false),
+    [q, setQ] = useState(params.get("search") || ""),
+    [risk, setRisk] = useState("All"),
+    [pathway, setPathway] = useState("All"),
+    [monitoring, setMonitoring] = useState("All"),
+    [connectivity, setConnectivity] = useState("All"),
+    [adherence, setAdherence] = useState("All"),
+    [review, setReview] = useState("All"),
+    [clinician, setClinician] = useState("All"),
+    [length, setLength] = useState("All"),
+    [sort, setSort] = useState<SortKey>("risk"),
+    [ascending, setAscending] = useState(true),
+    [page, setPage] = useState(1);
+  const nav = useNavigate(),
+    pageSize = 5;
+  const filtered = useMemo(
+    () =>
+      s.patients
+        .filter((p) => {
+          const ds = s.devices.filter((d) => d.patientId === p.id);
+          return (
+            p.monitoringStatus !== "Completed" &&
+            (risk === "All" || p.risk === risk) &&
+            (pathway === "All" || p.pathway === pathway) &&
+            (monitoring === "All" || p.monitoringStatus === monitoring) &&
+            (connectivity === "All" ||
+              (connectivity === "Offline"
+                ? ds.some((d) => d.status === "Offline")
+                : ds.every((d) => d.status === "Connected"))) &&
+            (adherence === "All" ||
+              (adherence === "Concern"
+                ? p.adherence < 85
+                : p.adherence >= 85)) &&
+            (review === "All" ||
+              (review === "Due"
+                ? p.nextReview.includes("Today") || p.nextReview === "Overdue"
+                : p.nextReview.includes("Tomorrow"))) &&
+            (clinician === "All" ||
+              p.nurse === clinician ||
+              p.consultant === clinician) &&
+            (length === "All" ||
+              (length === "0–7 days"
+                ? p.day <= 7
+                : length === "8–14 days"
+                  ? p.day >= 8 && p.day <= 14
+                  : p.day > 14)) &&
+            [p.name, p.id, p.episodeId, p.pathway, p.nurse, p.consultant]
+              .join(" ")
+              .toLowerCase()
+              .includes(q.toLowerCase())
+          );
+        })
+        .sort((a, b) => {
+          const rank = { Stable: 0, "Needs Review": 1, "High Risk": 2 };
+          const av = sort === "risk" ? rank[a.risk] : a[sort],
+            bv = sort === "risk" ? rank[b.risk] : b[sort];
+          return (
+            (typeof av === "number" && typeof bv === "number"
+              ? av - bv
+              : String(av).localeCompare(String(bv))) * (ascending ? 1 : -1)
+          );
+        }),
+    [
+      s.patients,
+      s.devices,
+      q,
+      risk,
+      pathway,
+      monitoring,
+      connectivity,
+      adherence,
+      review,
+      clinician,
+      length,
+      sort,
+      ascending,
+    ],
+  );
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize)),
+    list = filtered.slice(
+      (Math.min(page, pages) - 1) * pageSize,
+      Math.min(page, pages) * pageSize,
+    );
+  const changeSort = (key: SortKey) => {
+    if (sort === key) setAscending((v) => !v);
+    else {
+      setSort(key);
+      setAscending(true);
+    }
+  };
+  return (
+    <>
+      <PageHeader
+        eyebrow="PATIENT COHORT"
+        title="Active patients"
+        description={`${s.patients.filter((p) => p.monitoringStatus !== "Completed").length} people are currently receiving care through the virtual ward.`}
+        actions={
+          <button
+            className="btn primary"
+            disabled={!can(s.role, "enrol")}
+            title={
+              !can(s.role, "enrol")
+                ? "Nurse, care coordinator or Administrator role required"
+                : ""
+            }
+            onClick={() => setModal(true)}
+          >
+            <UserPlus /> Enrol patient
+          </button>
+        }
+      />
+      <Card>
+        <div className="table-tools patient-filter-toolbar">
+          <label className="search-box">
+            <Search />
+            <input
+              aria-label="Search active patients"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search patient, ID, episode or clinician..."
+            />
+          </label>
+          <div className="filter-grid">
+            <CustomSelect
+              ariaLabel="Care pathway"
+              value={pathway}
+              onChange={(value) => {
+                setPathway(value);
+                setPage(1);
+              }}
+              options={[
+                "All",
+                "COPD",
+                "Heart Failure",
+                "Diabetes",
+                "Post-operative",
+                "Hypertension",
+              ].map((value) => ({ value, label: value }))}
+            />
+            <CustomSelect
+              ariaLabel="Risk"
+              value={risk}
+              onChange={(value) => {
+                setRisk(value);
+                setPage(1);
+              }}
+              options={["All", "Stable", "Needs Review", "High Risk"].map(
+                (value) => ({ value, label: value }),
+              )}
+            />
+            <CustomSelect
+              ariaLabel="Monitoring status"
+              value={monitoring}
+              onChange={(value) => {
+                setMonitoring(value);
+                setPage(1);
+              }}
+              options={["All", "Active", "Needs Attention"].map((value) => ({
+                value,
+                label: value,
+              }))}
+            />
+            <CustomSelect
+              ariaLabel="Device connectivity"
+              value={connectivity}
+              onChange={(value) => {
+                setConnectivity(value);
+                setPage(1);
+              }}
+              options={["All", "Connected", "Offline"].map((value) => ({
+                value,
+                label: value,
+              }))}
+            />
+            <CustomSelect
+              ariaLabel="Medication adherence"
+              value={adherence}
+              onChange={(value) => {
+                setAdherence(value);
+                setPage(1);
+              }}
+              options={["All", "Maintained", "Concern"].map((value) => ({
+                value,
+                label: value,
+              }))}
+            />
+            <CustomSelect
+              ariaLabel="Review due"
+              value={review}
+              onChange={(value) => {
+                setReview(value);
+                setPage(1);
+              }}
+              options={["All", "Due", "Upcoming"].map((value) => ({
+                value,
+                label: value,
+              }))}
+            />
+            <CustomSelect
+              ariaLabel="Length of stay"
+              value={length}
+              onChange={(value) => {
+                setLength(value);
+                setPage(1);
+              }}
+              options={["All", "0–7 days", "8–14 days", "15+ days"].map(
+                (value) => ({ value, label: value }),
+              )}
+            />
+            <CustomSelect
+              ariaLabel="Clinician"
+              value={clinician}
+              onChange={(value) => {
+                setClinician(value);
+                setPage(1);
+              }}
+              options={[
+                "All",
+                "Rebecca Morgan",
+                "Aisha Khan",
+                "Nina Patel",
+                "Dr. James Howard",
+                "Dr. Leila Grant",
+              ].map((value) => ({ value, label: value }))}
+            />
+          </div>
+        </div>
+        {list.length ? (
+          <>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      <button
+                        className="sort-button"
+                        onClick={() => changeSort("name")}
+                      >
+                        Patient <ArrowUpDown />
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className="sort-button"
+                        onClick={() => changeSort("pathway")}
+                      >
+                        Care pathway <ArrowUpDown />
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className="sort-button"
+                        onClick={() => changeSort("day")}
+                      >
+                        Day <ArrowUpDown />
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className="sort-button"
+                        onClick={() => changeSort("risk")}
+                      >
+                        Current risk <ArrowUpDown />
+                      </button>
+                    </th>
+                    <th>Latest vitals</th>
+                    <th>
+                      <button
+                        className="sort-button"
+                        onClick={() => changeSort("adherence")}
+                      >
+                        Adherence <ArrowUpDown />
+                      </button>
+                    </th>
+                    <th>Device status</th>
+                    <th>Next review</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((p) => {
+                    const latest = s.observations
+                        .filter((o) => o.patientId === p.id)
+                        .sort(
+                          (a, b) =>
+                            +new Date(b.timestamp) - +new Date(a.timestamp),
+                        )
+                        .slice(0, 2),
+                      ds = s.devices.filter((d) => d.patientId === p.id);
+                    return (
+                      <tr key={p.id} onClick={() => nav(`/patients/${p.id}`)}>
+                        <td>
+                          <div className="patient-cell">
+                            <span>
+                              {p.name
+                                .split(" ")
+                                .map((x) => x[0])
+                                .join("")}
+                            </span>
+                            <div>
+                              <b>{p.name}</b>
+                              <small>
+                                {p.id} · {p.episodeId}
+                              </small>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          {p.pathway}
+                          <small className="block">{p.condition}</small>
+                        </td>
+                        <td>Day {p.day}</td>
+                        <td>
+                          <Badge>{p.risk}</Badge>
+                        </td>
+                        <td>
+                          {latest.map((o) => (
+                            <span className="vital-inline" key={o.id}>
+                              {o.type}{" "}
+                              <b>
+                                {o.value}
+                                {o.unit}
+                              </b>
+                            </span>
+                          ))}
+                        </td>
+                        <td>
+                          <b>{p.adherence}%</b>
+                          <div className="progress">
+                            <i style={{ width: p.adherence + "%" }} />
+                          </div>
+                        </td>
+                        <td>
+                          <Badge>
+                            {ds.some((d) => d.status === "Offline")
+                              ? "Needs Attention"
+                              : "Connected"}
+                          </Badge>
+                          <small className="block">{ds.length} assigned</small>
+                        </td>
+                        <td>{p.nextReview}</td>
+                        <td>
+                          <button
+                            className="icon-btn"
+                            aria-label={`Open ${p.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              nav(`/patients/${p.id}`);
+                            }}
+                          >
+                            <ArrowRight />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="pagination">
+              <small>
+                Showing {(page - 1) * pageSize + 1}–
+                {Math.min(page * pageSize, filtered.length)} of{" "}
+                {filtered.length}
+              </small>
+              <div>
+                <button
+                  className="icon-btn"
+                  aria-label="Previous page"
+                  disabled={page <= 1}
+                  onClick={() => setPage((v) => v - 1)}
+                >
+                  <ChevronLeft />
+                </button>
+                <button
+                  className="icon-btn"
+                  aria-label="Next page"
+                  disabled={page >= pages}
+                  onClick={() => setPage((v) => v + 1)}
+                >
+                  <ChevronRight />
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <Empty
+            title="No matching patients"
+            detail="Adjust the search or filters."
+          />
+        )}
+      </Card>
+      {modal && <EnrolModal onClose={() => setModal(false)} />}
+    </>
+  );
+}
